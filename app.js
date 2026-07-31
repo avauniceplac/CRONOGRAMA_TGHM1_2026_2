@@ -13,17 +13,28 @@
 const LINK_CRONOGRAMA_PDF = "https://drive.google.com/file/d/1-Cn5JxdVC4PbvAO3RQneymELgaYiVzy7/view?usp=drive_link";
 
 const EVENTOS = [
-  { titulo:"Abertura das Salas e Fórum de Apresentação", inicio:"2026-08-04", fim:"2026-08-04" },
-  { titulo:"Fórum de Aprendizagem Avaliativo", inicio:"2026-08-11", fim:"2026-09-04" },
-  { titulo:"Trabalho Final do Módulo",          inicio:"2026-08-11", fim:"2026-09-04" },
-  { titulo:"Exercícios Online",                 inicio:"2026-08-11", fim:"2026-09-04" },
-  { titulo:"Prova Presencial",                    inicio:"2026-09-21", fim:"2026-09-26", periodoCompleto:true },
-  { titulo:"Solicitação de Prova – 2ª Chamada", inicio:"2026-09-21", fim:"2026-09-26" },
-  { titulo:"Prova 2ª Chamada – Presencial",    inicio:"2026-09-28", fim:"2026-09-29", periodoCompleto:true },
-  { titulo:"Liberação dos Resultados",         inicio:"2026-10-04", fim:"2026-10-04" },
-  { titulo:"Prova Final (Recuperação)",        inicio:"2026-10-07", fim:"2026-10-08", periodoCompleto:true },
-  { titulo:"Liberação dos Resultados Finais",  inicio:"2026-10-15", fim:"2026-10-15" },
-  { titulo:"Importação das Notas para o Sistema Acadêmico", inicio:"2026-10-16", fim:"2026-10-16" },
+  { titulo:"Abertura das Salas e Fórum de Apresentação", inicio:"2026-08-04", fim:"2026-08-04",
+    descricao:"Abertura das salas virtuais e do fórum de apresentação para início das atividades do módulo." },
+  { titulo:"Fórum de Aprendizagem Avaliativo", inicio:"2026-08-11", fim:"2026-09-04",
+    descricao:"Período para participar do fórum de aprendizagem avaliativo do módulo." },
+  { titulo:"Trabalho Final do Módulo",          inicio:"2026-08-11", fim:"2026-09-04",
+    descricao:"Período para realização e envio do Trabalho Final do Módulo." },
+  { titulo:"Exercícios Online",                 inicio:"2026-08-11", fim:"2026-09-04",
+    descricao:"Período para realização dos exercícios online do módulo." },
+  { titulo:"Prova Presencial",                    inicio:"2026-09-21", fim:"2026-09-26", periodoCompleto:true,
+    descricao:"Período de realização da Prova Presencial do módulo." },
+  { titulo:"Solicitação de Prova – 2ª Chamada", inicio:"2026-09-21", fim:"2026-09-26",
+    descricao:"Período para solicitar a Prova de 2ª Chamada, mediante requerimento com justificativa legal no Portal do Aluno." },
+  { titulo:"Prova 2ª Chamada – Presencial",    inicio:"2026-09-28", fim:"2026-09-29", periodoCompleto:true,
+    descricao:"Período de realização da Prova de 2ª Chamada, de forma presencial." },
+  { titulo:"Liberação dos Resultados",         inicio:"2026-10-04", fim:"2026-10-04",
+    descricao:"Liberação dos resultados de Prova, Fórum, Exercícios e Trabalho na plataforma." },
+  { titulo:"Prova Final (Recuperação)",        inicio:"2026-10-07", fim:"2026-10-08", periodoCompleto:true,
+    descricao:"Período de realização da Prova Final para quem ficou em recuperação." },
+  { titulo:"Liberação dos Resultados Finais",  inicio:"2026-10-15", fim:"2026-10-15",
+    descricao:"Liberação dos resultados finais, após a Prova Final (Recuperação)." },
+  { titulo:"Importação das Notas para o Sistema Acadêmico", inicio:"2026-10-16", fim:"2026-10-16",
+    descricao:"Importação das notas do módulo para o Sistema Acadêmico, no Portal do Aluno." },
 ];
 
 document.addEventListener("DOMContentLoaded", function(){
@@ -146,8 +157,9 @@ document.addEventListener("DOMContentLoaded", function(){
         if (!disp.show) return;
         const per = ev.inicio === ev.fim ? fmt(pd(ev.inicio)) : `${fmt(pd(ev.inicio))} a ${fmt(pd(ev.fim))}`;
         const tagTxt = disp.tag ? `${disp.tag} · ` : "";
+        const idx = EVENTOS.indexOf(ev);
         cell.insertAdjacentHTML("beforeend",
-          `<div class="pill ${ev.status}" title="${ev.titulo} (${per})">
+          `<div class="pill ${ev.status}" data-ev-idx="${idx}" title="${ev.titulo} (${per})">
              ${tagTxt}${ev.titulo}
              <span class="pdate mono">${per}</span>
            </div>`);
@@ -216,8 +228,9 @@ document.addEventListener("DOMContentLoaded", function(){
         evs.forEach(({ev, disp}) => {
           const per = ev.inicio === ev.fim ? fmt(pd(ev.inicio)) : `${fmt(pd(ev.inicio))} a ${fmt(pd(ev.fim))}`;
           const tagTxt = disp.tag ? `${disp.tag} · ` : "";
+          const idx = EVENTOS.indexOf(ev);
           list.insertAdjacentHTML("beforeend",
-            `<div class="agenda-ev ${ev.status}">${tagTxt}${ev.titulo}<small class="mono">${per}</small></div>`);
+            `<div class="agenda-ev ${ev.status}" data-ev-idx="${idx}">${tagTxt}${ev.titulo}<small class="mono">${per}</small></div>`);
         });
         dayEl.appendChild(list);
       }
@@ -251,6 +264,45 @@ document.addEventListener("DOMContentLoaded", function(){
       window.scrollTo({ top:0, behavior:"smooth" });
     });
   });
+
+  /* ---------- modal de detalhes do evento ---------- */
+  const evOverlay = $("#eventModalOverlay");
+  const evHead = $("#evHead"), evTitulo = $("#evTitulo"), evPeriodo = $("#evPeriodo");
+  const evTagStatus = $("#evTagStatus"), evDescricao = $("#evDescricao");
+
+  const STATUS_LABEL = {
+    past: "Encerrado",
+    "upcoming-3": "Encerra em até 3 dias",
+    "upcoming-7": "Encerra em até 7 dias",
+    upcoming: "Em andamento",
+    future: "Ainda vai começar",
+  };
+
+  function abrirModalEvento(idx){
+    const ev = EVENTOS[idx];
+    if (!ev) return;
+    const per = ev.inicio === ev.fim ? fmt(pd(ev.inicio)) : `${fmt(pd(ev.inicio))} a ${fmt(pd(ev.fim))}`;
+    evHead.className = "event-modal-head status-" + ev.status;
+    evTitulo.textContent = ev.titulo;
+    evPeriodo.textContent = per;
+    evTagStatus.textContent = STATUS_LABEL[ev.status] || "—";
+    evDescricao.textContent = ev.descricao || "Sem descrição adicional para este evento.";
+    evOverlay.classList.add("show");
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function fecharModalEvento(){ evOverlay.classList.remove("show"); }
+
+  [calContainer, agenda].forEach(container => {
+    container.addEventListener("click", e => {
+      const alvo = e.target.closest(".pill, .agenda-ev");
+      if (!alvo) return;
+      abrirModalEvento(Number(alvo.dataset.evIdx));
+    });
+  });
+
+  $("#closeEventModal").addEventListener("click", fecharModalEvento);
+  evOverlay.addEventListener("click", e => { if (e.target === evOverlay) fecharModalEvento(); });
 
   /* ---------- modal + abertura do PDF ---------- */
   const overlay = $("#pdfModalOverlay"), ack = $("#ackCheckbox"), confirmBtn = $("#confirmPdf");
